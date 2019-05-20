@@ -1,0 +1,8 @@
+server:
+  port: 8080
+  ssl:
+    alias: examplecert
+    key-store: classpath:keystore.jks
+    key-store-password: <%= $ENV[:allpassword] %>
+    trust-store: classpath:truststore.jks
+    trust-store-password: <%= $ENV[:allpassword] %>
