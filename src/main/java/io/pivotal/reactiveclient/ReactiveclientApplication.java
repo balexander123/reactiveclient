@@ -6,15 +6,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ReactiveHttpOutputMessage;
 import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.util.ResourceUtils;
-import org.springframework.web.reactive.function.BodyInserter;
-import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -26,9 +22,7 @@ import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.io.FileInputStream;
-import java.nio.charset.Charset;
 import java.security.cert.Certificate;
-import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -49,7 +43,7 @@ public class ReactiveclientApplication implements CommandLineRunner {
 
     private WebClient createWebClientWithServerURLAndDefaultValues() {
 
-        ClientHttpConnector connector;
+        SslContext sslContext;
 
         try {
             // Load the trusted CA certificate
@@ -78,29 +72,25 @@ public class ReactiveclientApplication implements CommandLineRunner {
             KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
             keyManagerFactory.init(trustStore, trustStorePass.toCharArray());
 
-            PrivateKey privateKey = (PrivateKey)keyStore.getKey(keyAlias, keyStorePass.toCharArray());
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keyAlias, keyStorePass.toCharArray());
 
-            SslContext sslContext = SslContextBuilder.forClient()
-                    .keyManager(privateKey)
+            sslContext = SslContextBuilder.forClient()
+                    //.keyManager(privateKey)
                     .trustManager((X509Certificate[]) certificateCollection.toArray(new X509Certificate[certificateCollection.size()]))
+                    .protocols("TLSv1.2")
                     .build();
 
             HttpClient httpClient = HttpClient.create()
                     .secure(sslContextSpec -> sslContextSpec.sslContext(sslContext));
-            connector = new ReactorClientHttpConnector(httpClient);
+            ClientHttpConnector connector = new ReactorClientHttpConnector(httpClient);
+            return WebClient.builder()
+                    .baseUrl("https://localhost:8443")
+                    .clientConnector(connector)
+                    .build();
 
         } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException | UnrecoverableKeyException e) {
             throw new RuntimeException(e);
         }
-
-
-        return WebClient.builder()
-                .baseUrl("https://localhost:8443")
-                .defaultCookie("cookieKey", "cookieValue")
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_PLAIN_VALUE)
-                .defaultUriVariables(Collections.singletonMap("url", "https://localhost:8443"))
-                .clientConnector(connector)
-                .build();
     }
 
     public static void main(String[] args) {
@@ -110,28 +100,14 @@ public class ReactiveclientApplication implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
 
-//        WebClient.RequestBodySpec uri1 = createWebClientWithServerURLAndDefaultValues().method(HttpMethod.GET)
-//                .uri("/restexamples/hello");
-//
-//        BodyInserter<String, ReactiveHttpOutputMessage> inserter = BodyInserters.fromObject("body");
-//
-//        WebClient.ResponseSpec response = uri1.body(inserter)
-//                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-//                .accept(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML)
-//                .acceptCharset(Charset.forName("UTF-8"))
-//                .ifNoneMatch("*")
-//                .ifModifiedSince(ZonedDateTime.now())
-//                .retrieve();
-
         WebClient webClient = createWebClientWithServerURLAndDefaultValues();
 
-        WebClient.RequestBodySpec uri1 = webClient.method(HttpMethod.GET)
-                .uri("/restexamples/hello");
+        Mono<ClientResponse> result = webClient.get()
+                .uri("/restexamples/hello")
+                .accept(MediaType.TEXT_PLAIN)
+                .exchange();
 
-        Mono<String> result = webClient.get()
-                .retrieve()
-                .bodyToMono(String.class);
-        String response = result.block();
+        String response = result.block().toString();
         System.out.println(response);
 
         System.exit(0);
