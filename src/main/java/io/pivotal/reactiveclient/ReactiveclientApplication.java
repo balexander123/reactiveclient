@@ -4,15 +4,14 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.util.ResourceUtils;
-import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 
@@ -26,6 +25,7 @@ import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
 
 @SpringBootApplication
 public class ReactiveclientApplication implements CommandLineRunner {
@@ -94,21 +94,27 @@ public class ReactiveclientApplication implements CommandLineRunner {
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(ReactiveclientApplication.class, args);
+        SpringApplication app = new SpringApplication(ReactiveclientApplication.class);
+        app.setWebApplicationType(WebApplicationType.NONE);
+        app.run(args);
+    }
+
+    public String getSecureHello() {
+        WebClient webClient = createWebClientWithServerURLAndDefaultValues();
+
+        String response = webClient.get()
+                .uri("/restexamples/hello")
+                .accept(MediaType.TEXT_PLAIN)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+        return response;
     }
 
     @Override
     public void run(String... args) throws Exception {
 
-        WebClient webClient = createWebClientWithServerURLAndDefaultValues();
-
-        Mono<ClientResponse> result = webClient.get()
-                .uri("/restexamples/hello")
-                .accept(MediaType.TEXT_PLAIN)
-                .exchange();
-
-        String response = result.block().toString();
-        System.out.println(response);
+        System.out.println(getSecureHello());
 
         System.exit(0);
     }
